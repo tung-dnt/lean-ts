@@ -1,0 +1,33 @@
+{
+  "name": "lean-ts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "vp config",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@swc/core": "catalog:",
+    "@types/node": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.21.0",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24.11.0",
+      "onFail": "error"
+    }
+  },
+  "engines": {
+    "node": "^24.11.0"
+  }
+}

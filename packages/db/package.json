@@ -1,0 +1,32 @@
+{
+  "name": "@lean-ts/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The only package that imports Drizzle or a database driver: schema, migrations, client, queries. Server-only.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vp test",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
+    "db:migrate": "node src/migrate-cli.ts"
+  },
+  "dependencies": {
+    "@lean-ts/domain-note": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "testcontainers": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

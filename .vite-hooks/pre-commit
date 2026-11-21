@@ -1,0 +1,5 @@
+#!/bin/sh
+# Same type-aware backend as `vp run check` and CI (see vite.config.ts).
+OXLINT_TSGOLINT_PATH="$(git rev-parse --show-toplevel)/node_modules/.bin/tsgolint"
+export OXLINT_TSGOLINT_PATH
+vp staged

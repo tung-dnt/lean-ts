@@ -1,0 +1,56 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Every shared version lives here; packages reference it with "catalog:".
+catalogMode: strict
+
+catalog:
+  # dependency-cruiser's parser: it cannot use TypeScript 7.0 (no compiler API until 7.1).
+  "@swc/core": 1.16.22
+  "@testcontainers/postgresql": 12.2.2
+  "@types/aws-lambda": 8.10.164
+  "@types/node": 26.6.6
+  "@types/pg": 8.23.1
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  "@vitejs/plugin-react": 6.3.0
+  dependency-cruiser: 18.8.0
+  # Drizzle v1 is a release candidate: exact pins only, upgrades in their own PR (ADR decision 6).
+  drizzle-kit: 1.0.0-rc.6
+  drizzle-orm: 1.0.0-rc.6
+  # Type-aware lint backend; tracks TypeScript 7.0.x. See AGENTS.md "Checks".
+  oxlint-tsgolint: 7.0.2007
+  pg: 8.23.1
+  react: 19.3.1
+  react-dom: 19.3.1
+  testcontainers: 12.2.2
+  typescript: 7.0.2
+  vite: npm:@voidzero-dev/vite-plus-core@8.3.8000
+  vite-plus: 1.7.0
+  zod: 4.6.7
+
+overrides:
+  vite@*: "catalog:"
+
+strictPeerDependencies: true
+trustPolicy: no-downgrade
+# vite-plus 1.7 depends on tsrs, whose release trips no-downgrade (oxc-project/tsrs#945).
+# Lint does not use it (see vite.config.ts); it is only installed.
+trustPolicyExclude:
+  - tsrs@7.1.0-beta.tsrs2
+
+# pnpm's default minimum release age holds back brand-new versions (supply-chain guard).
+# An exclusion here is a deliberate, reviewed exception for one exact version.
+minimumReleaseAgeExclude:
+  - drizzle-kit@1.0.0-rc.6
+  - drizzle-orm@1.0.0-rc.6
+
+# Install scripts are denied unless listed here as true. The entries below are optional
+# native add-ons pulled in by testcontainers (ssh2 for SSH tunnels) that we do not need,
+# and @swc/core, whose postinstall only re-checks the prebuilt binary it already ships.
+allowBuilds:
+  "@swc/core": false
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

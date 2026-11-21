@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ready:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: leants
+          POSTGRES_PASSWORD: leants
+          POSTGRES_DB: leants
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leants -d leants"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Tests use this server instead of starting containers; each package's run creates
+      # and drops its own database on it (packages/db/src/testing.ts).
+      TEST_DATABASE_URL: postgres://leants:leants@localhost:5432/leants
+      # Type-aware lint on tsgolint, not the bundled tsrs prerelease (vite.config.ts).
+      OXLINT_TSGOLINT_PATH: node_modules/.bin/tsgolint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Vite+, Node and pnpm, install
+        uses: voidzero-dev/setup-vp@0072dab61af1caed438a55cb90c8d6dc0dfa09ce # v1.22.0
+        with:
+          node-version-file: .node-version
+          cache: true
+
+      # One step per gate of `vp run ready`. Each runs even when an earlier one failed,
+      # so one run shows everything that is wrong.
+      - name: Format, lint, type-aware lint
+        if: ${{ !cancelled() }}
+        run: vp run check
+
+      - name: Types
+        if: ${{ !cancelled() }}
+        run: vp run types
+
+      - name: Boundaries
+        if: ${{ !cancelled() }}
+        run: vp run boundaries
+
+      - name: Migrations consistent
+        if: ${{ !cancelled() }}
+        run: vp run db:check
+
+      - name: Tests (real PostgreSQL)
+        if: ${{ !cancelled() }}
+        run: vp run -r test
+
+      - name: Build
+        if: ${{ !cancelled() }}
+        run: vp run -r build

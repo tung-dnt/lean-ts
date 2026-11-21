@@ -1,0 +1,24 @@
+{
+  "name": "@lean-ts/domain-note",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Note business rules. Pure: no IO, no runtime, no env. Client-safe.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "leanTs": {
+    "clientSafe": true
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "type": "base",
+  "version": "10",
+  "dialect": "postgres",
+  "id": "a7120ffa-b13e-4a92-9920-ff2b7e3f2f99",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "note_status"
+      ],
+      "writes": [
+        "s|enum|public.note_status",
+        "n|enum|public.note_status",
+        "e|enum|public.note_status",
+        "n|type|public.note_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "notes"
+      ],
+      "writes": [
+        "s|tbl|public.notes",
+        "n|tbl|public.notes",
+        "e|tbl|public.notes",
+        "n|rel|public.notes",
+        "n|type|public.notes",
+        "n|rel|public.notes_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.note_status"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "processed_messages"
+      ],
+      "writes": [
+        "s|tbl|public.processed_messages",
+        "n|tbl|public.processed_messages",
+        "e|tbl|public.processed_messages",
+        "n|rel|public.processed_messages",
+        "n|type|public.processed_messages",
+        "n|rel|public.processed_messages_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    }
+  ],
+  "ddl": [
+    {
+      "schema": "public",
+      "name": "notes",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "processed_messages",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "note_status",
+      "values": [
+        "active",
+        "archived"
+      ],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "table": "notes",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "notes",
+      "name": "title",
+      "type": "varchar(200)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "notes",
+      "name": "body",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "notes",
+      "name": "status",
+      "type": "note_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'active'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "notes",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "notes",
+      "name": "archived_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "processed_messages",
+      "name": "message_id",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "processed_messages",
+      "name": "processed_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "notes",
+      "name": "notes_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "processed_messages",
+      "name": "processed_messages_pkey",
+      "columns": [
+        "message_id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    }
+  ]
+}

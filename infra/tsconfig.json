@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // aws-cdk-lib's own types break under this flag (Bucket is not assignable to IBucket:
+    // `isWebsite?: boolean` vs `boolean`). Off for infra/ only; CONSTRAINTS.md E1.
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["bin", "src", "tests", "vite.config.ts"]
+}

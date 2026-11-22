@@ -47,12 +47,32 @@ To add a domain, copy `packages/domain-note` to `packages/domain-<name>`, rename
 
 - Schema: `packages/db/src/schema.ts`. After changing it, run `vp run --filter @lean-ts/db db:generate` (it runs `drizzle-kit generate`), then read the generated `migration.sql` before committing: Drizzle v1 is a release candidate.
 - Queries live in `packages/db/src/*.ts` and take an `Executor` (a database or an open transaction). `inTransaction` commits when the callback resolves and rolls back when it throws.
-- Migrations run as a deploy step (`DATABASE_URL=… vp run --filter @lean-ts/db db:migrate`), never at Lambda cold start.
+- Migrations run as a deploy step: in AWS, the `apps/migrator` Lambda, which a CDK Trigger runs before the app functions update (a failed migration fails the deploy). Locally: `DATABASE_URL=… vp run --filter @lean-ts/db db:migrate`. Never at Lambda cold start.
 - Tests: each package's Vitest global setup (`@lean-ts/db/testing`) creates a fresh database, migrates it and drops it afterwards. Without `TEST_DATABASE_URL` it starts a `postgres:17-alpine` container; with it (CI) it creates the database on that server, whose role needs `CREATEDB`.
 
 ## Lambda bundles
 
-`vp pack` builds `apps/*/dist/handler.mjs`: one ESM file with every dependency, workspace packages included, so the deploy artifact needs no `node_modules`. Handler: `handler.handler`, runtime `nodejs24.x`. Settings: `tooling/lambda-pack.ts`. Each Lambda reads `DATABASE_URL` at cold start.
+`vp pack` builds `apps/*/dist/handler.mjs`: one ESM file with every dependency, workspace packages included, so the deploy artifact needs no `node_modules`; the one exception is `@aws-sdk/client-secrets-manager`, which the nodejs24.x runtime provides. Handler: `handler.handler`, runtime `nodejs24.x`. Settings: `tooling/lambda-pack.ts`. Each Lambda resolves the database URL at cold start (`resolveDatabaseUrl`): `DATABASE_URL` locally, otherwise the Secrets Manager secret named by `DATABASE_SECRET_ARN`.
+
+## Infrastructure (AWS CDK)
+
+`infra/` defines one stack per stage (`lean-ts-<stage>`) in TypeScript: the HTTP API and its Lambda, the SQS queue + DLQ and worker (partial batch responses), the durable pipeline behind a `live` alias, the migrator Trigger, the web app (private S3 + CloudFront, `/notes*` forwarded to the API on the same origin), an SNS topic with alarms (function errors, API 5xx, DLQ depth, queue age, failed workflow runs) and a log group with retention per function. Every Lambda gets X-Ray, the ADOT layer for OpenTelemetry, Powertools env and read access to the database secret only.
+
+| Context (`-c key=value`, defaults in `infra/cdk.json`) | Meaning                                                                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `stage`                                                | `dev` (default), `staging`, `prod`; prod keeps buckets and logs on stack delete                               |
+| `databaseSecretArn`                                    | **required**: an existing secret whose value is the `postgres://…` URL; the `cdk.json` value is a placeholder |
+| `vpcId`                                                | optional VPC that reaches the database; functions go in its private subnets                                   |
+| `alarmEmail`                                           | optional subscriber for the alarm topic                                                                       |
+| `adotLayerArn`                                         | optional override of the ADOT Node layer (defaults to version 14 for the region)                              |
+
+```sh
+vp run -r build && vp run infra:synth                     # also in vp run ready and CI
+cd infra && pnpm exec cdk bootstrap                         # once per account/region
+pnpm exec cdk deploy -c stage=dev -c databaseSecretArn=arn:aws:secretsmanager:…
+```
+
+Tests (`infra/tests`) synthesize the stack against stub bundles and pin the contract: runtime and architecture, the secret instead of a URL in env, durable config and alias, partial batch responses and the DLQ, migrations before app functions, a private bucket, retention and alarms.
 
 ## Lambda runtime: Powertools for AWS Lambda
 

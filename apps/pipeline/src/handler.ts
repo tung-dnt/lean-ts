@@ -1,15 +1,13 @@
 import { createOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
 import { Logger } from "@aws-lambda-powertools/logger";
-import { z } from "zod";
 
 import { connect } from "@lean-ts/db";
-import { loadConfig } from "@lean-ts/platform";
+import { resolveDatabaseUrl } from "@lean-ts/platform";
 
 import { ARCHIVE_NOTE_WORKFLOW, archiveNoteWorkflow } from "./archive-note.ts";
 
-// Cold start: config and one pooled connection per execution environment.
-const config = loadConfig(z.object({ DATABASE_URL: z.string().min(1) }));
-const { db } = connect(config.DATABASE_URL, { max: 1 });
+// Cold start: database URL once, one pooled connection per execution environment.
+const { db } = connect(await resolveDatabaseUrl(), { max: 1 });
 
 // Spans go to the global OpenTelemetry provider, which the ADOT / Application Signals
 // layer registers (AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument). Without the layer the

@@ -49,10 +49,15 @@ export default defineConfig({
         command: "node tooling/workflow-contract.ts",
         cache: false,
       },
+      // CloudFormation for every app, from the built bundles (infra/). Needs `vp run -r build` first.
+      "infra:synth": {
+        command: "vp run --filter @lean-ts/infra synth",
+        cache: false,
+      },
       // The full gate: what CI runs and what "done" means for a task.
       ready: {
         command:
-          "vp run check && vp run types && vp run boundaries && vp run db:check && vp run workflows:graph && vp run workflows:contract && vp run -r test && vp run -r build",
+          "vp run check && vp run types && vp run boundaries && vp run db:check && vp run workflows:graph && vp run workflows:contract && vp run -r test && vp run -r build && vp run infra:synth",
         cache: false,
       },
     },

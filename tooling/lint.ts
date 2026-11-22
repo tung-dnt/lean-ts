@@ -64,11 +64,19 @@ export const lintConfig: LintConfig = {
       rules: { "node/no-process-env": "error" },
     },
     {
+      // CDK constructs register themselves in their scope when constructed: `new Topic(this, …)`
+      // is the idiom, not a side-effect smell. CONSTRAINTS.md E2.
+      files: ["infra/**"],
+      rules: { "eslint/no-new": "off" },
+    },
+    {
       files: ["**/tests/**", "**/*.test.ts", "**/*.test.tsx"],
       plugins: ["vitest"],
       rules: {
         "vitest/no-disabled-tests": "error",
         "vitest/no-focused-tests": "error",
+        // CDK's Template.has*/resource*CountIs throw on mismatch: they are assertions.
+        "vitest/expect-expect": ["error", { assertFunctionNames: ["expect", "template.has*", "template.resource*"] }],
       },
     },
   ],

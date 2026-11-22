@@ -43,10 +43,16 @@ export default defineConfig({
         command: "node tooling/workflow-graph.ts",
         cache: false,
       },
+      // Each workflow's contract, read from source: effect, semantics, idempotency guard, retries,
+      // concurrency and data flow per operation. Fails on a contract rule breach (README).
+      "workflows:contract": {
+        command: "node tooling/workflow-contract.ts",
+        cache: false,
+      },
       // The full gate: what CI runs and what "done" means for a task.
       ready: {
         command:
-          "vp run check && vp run types && vp run boundaries && vp run db:check && vp run workflows:graph && vp run -r test && vp run -r build",
+          "vp run check && vp run types && vp run boundaries && vp run db:check && vp run workflows:graph && vp run workflows:contract && vp run -r test && vp run -r build",
         cache: false,
       },
     },

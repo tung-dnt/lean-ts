@@ -65,6 +65,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: vp run workflows:graph
 
+      - name: Workflow contracts
+        if: ${{ !cancelled() }}
+        run: vp run workflows:contract
+
       - name: Tests (real PostgreSQL)
         if: ${{ !cancelled() }}
         run: vp run -r test
@@ -73,9 +77,9 @@ jobs:
         if: ${{ !cancelled() }}
         run: vp run -r build
 
-  # Puts a Mermaid graph of each changed durable workflow (before and after) into the PR
-  # body, between <!-- workflow-graphs:start/end --> markers; the rest of the body is kept.
-  # Same-repository PRs only: a fork's token cannot edit the PR.
+  # Puts a Mermaid graph of each changed durable workflow (before and after), then its contract
+  # card, into the PR body between <!-- workflow-graphs:… --> and <!-- workflow-contracts:… -->
+  # markers; the rest of the body is kept. Same-repository PRs only: a fork's token cannot edit the PR.
   workflow-graphs:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
@@ -98,3 +102,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node tooling/workflow-graph.ts --base "origin/${{ github.base_ref }}" --pr "${{ github.event.pull_request.number }}"
+
+      - name: Update the workflow contracts in the PR body
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tooling/workflow-contract.ts --base "origin/${{ github.base_ref }}" --pr "${{ github.event.pull_request.number }}"

@@ -19,6 +19,7 @@ vp run ready          # every gate: check, types, boundaries, db:check, workflow
 | `vp run boundaries`                | Workspace boundary rules (`tooling/dependency-cruiser.cjs`)            |
 | `vp run db:check`                  | `drizzle-kit check` on the migrations                                  |
 | `vp run workflows:graph`           | Mermaid graph of every durable workflow, from source (durable-viz)     |
+| `vp run workflows:contract`        | Each workflow's contract (effects, idempotency, retries, data flow)    |
 | `vp run -r test`                   | Every package's tests, against real PostgreSQL                         |
 | `vp run -r build`                  | Lambda bundles and the web build                                       |
 | `vp run --filter @lean-ts/web dev` | Web dev server (proxies `/notes` to `localhost:3000`)                  |
@@ -81,6 +82,9 @@ Rules (the code is replayed from the top after every wait or retry):
 - One durable function per workflow; production invokes a published version through an alias (`live`), never `$LATEST`, so runs in flight keep the code they started with.
 - Side effects and clock reads only inside `context.step`. Step names are a contract with runs in flight: renaming or reordering one breaks them.
 - Steps return IDs and outcomes, never patient data: results are stored in the execution history.
+- Every `context.step` takes `stepPolicy({ … })` (`src/step-policy.ts`) as its third argument: `effect: "read"`, or `effect: "write"` with a `guard`, plus a named `retry` policy (`transient`, `none`). Retries and execution semantics are then explicit, and the result type must survive the JSON checkpoint (`Checkpointable`: no `Date`, `Map`, `Set` or class instances, which come back changed on replay).
+- A write step can run twice: when it succeeded but its checkpoint was lost, on each retry, and when two executions run at once. Its `guard` says why that is safe (`row-lock`, `conditional-update`, `unique-key`, `idempotency-key`), and a test named `idempotent: <workflow>/<step>` runs its effect twice. A step that can't be made safe uses `guard: "at-most-once"`: at most one attempt, no retries.
+- Concurrency inside a run goes through `context.parallel` or `context.map` with `maxConcurrency` set (the default is unlimited), never `Promise.all` over durable operations. Across runs, the database guard is what serializes work on the same row.
 - The caller starts a run with the correlation ID in the execution name (`--durable-execution-name archive-note-<correlationId>`). Lambda then refuses a second run with that name and a different payload, and the ID is in the execution ARN on every span.
 - `withDurableExecution` wraps the handler inline in the workflow file, so durable-viz can draw it.
 
@@ -88,13 +92,19 @@ Observability: the durable SDK's OpenTelemetry plugin emits one trace per run (a
 
 Tests run the workflow with the SDK's `LocalDurableTestRunner`, which replays it like Lambda, against real PostgreSQL.
 
+## Workflow contracts in pull requests
+
+`vp run workflows:contract` reads each workflow with swc (nothing runs) and prints a contract card: per operation, its effect and execution semantics, idempotency guard and whether the run-twice test exists, retry policy, concurrency limit, what it reads and where its result goes, plus a Mermaid data-flow graph (input → steps → results → handler). It fails, as part of `vp run ready`, when an operation name isn't a string literal, a step has no `stepPolicy`, a write step has no `idempotent:` test, `map`/`parallel` has no `maxConcurrency`, a callback has no `serdes` (the default hands back the raw string), or `Promise.all`/`allSettled`/`race`/`any` runs outside a step.
+
+On pull requests, the same CI job as the graphs writes the cards of changed workflows into the PR body, between `<!-- workflow-contracts:start -->` and `<!-- workflow-contracts:end -->`.
+
 ## Workflow graphs in pull requests
 
 `vp run workflows:graph` draws every workflow as a Mermaid flowchart from source with [durable-viz](https://github.com/gunnargrosch/durable-viz) (static analysis: nothing runs). It fails when a workflow can't be drawn, which is why it is in `vp run ready`.
 
 On pull requests, the `workflow-graphs` CI job runs `node tooling/workflow-graph.ts --base origin/<target> --pr <number>`: for each workflow file the PR changes, it writes the graph before and after into the PR body, between `<!-- workflow-graphs:start -->` and `<!-- workflow-graphs:end -->`. It keeps the rest of the body, rewrites only that section on each push, and removes it when no workflow changed. It runs on same-repository PRs only (a fork's token can't edit the PR).
 
-What the graph doesn't show: durable-viz draws durable operations and the `if`s and loops around them. A branch with no durable call inside (an early `return`, for example) is not drawn, and helpers imported from another file are not followed. Review the code for those.
+What the graph doesn't show: durable-viz draws durable operations and the `if`s and loops around them. It draws `try`/`catch`, `switch` and `Promise.all` as straight sequences, can leave out a step in an `else` branch, and doesn't draw an early `return` or helpers imported from another file; none of these produce a warning. Read the contract card and the code for those.
 
 ## Type-aware lint backend
 

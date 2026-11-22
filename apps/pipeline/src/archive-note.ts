@@ -11,6 +11,8 @@ import { z } from "zod";
 import { findNote, findNoteForUpdate, inTransaction, saveNote, type Database } from "@lean-ts/db";
 import { archiveNote } from "@lean-ts/domain-note";
 
+import { stepPolicy } from "./step-policy.ts";
+
 /** Workflow name: the Workflow span name, and the key dashboards group by. */
 export const ARCHIVE_NOTE_WORKFLOW = "archive-note";
 
@@ -31,7 +33,8 @@ export type ArchiveNoteOutcome = "archived" | "already-archived" | "missing";
  * - everything with a side effect or a clock read happens inside `context.step`;
  * - step names are a contract with runs in flight: renaming one breaks them;
  * - steps return IDs and outcomes only, never note content, because results are stored
- *   in the execution history.
+ *   in the execution history;
+ * - every step declares its effect, retries and idempotency guard with `stepPolicy`.
  *
  * `withDurableExecution` wraps the handler inline, in this file: `vp run workflows:graph`
  * (durable-viz) draws the graph from it and only reads the file that makes that call.
@@ -49,10 +52,14 @@ export function archiveNoteWorkflow(deps: {
       const input = archiveNoteInput.parse(event);
       const fields = { correlationId: input.correlationId, noteId: input.noteId };
 
-      const exists = await context.step("check-note", async () => {
-        tagSpan(fields);
-        return (await findNote(deps.db, input.noteId)) !== undefined;
-      });
+      const exists = await context.step(
+        "check-note",
+        async () => {
+          tagSpan(fields);
+          return (await findNote(deps.db, input.noteId)) !== undefined;
+        },
+        stepPolicy({ effect: "read", retry: "transient" }),
+      );
       if (!exists) {
         context.logger.warn("note not found; nothing to archive", fields);
         return { outcome: "missing" };
@@ -61,23 +68,38 @@ export function archiveNoteWorkflow(deps: {
       context.logger.info("grace period started", { ...fields, graceSeconds: input.graceSeconds });
       await context.wait("grace-period", { seconds: input.graceSeconds });
 
-      const outcome = await context.step("archive", async () => {
-        tagSpan(fields);
-        return await inTransaction(deps.db, async (tx): Promise<ArchiveNoteOutcome> => {
-          const note = await findNoteForUpdate(tx, input.noteId);
-          if (note === undefined) return "missing";
-          const archived = archiveNote(note, deps.now());
-          if (!archived.ok) return "already-archived";
-          await saveNote(tx, archived.value);
-          return "archived";
-        });
-      });
+      const outcome = await context.step(
+        "archive",
+        async () => {
+          tagSpan(fields);
+          return await archiveNoteById(deps, input.noteId);
+        },
+        stepPolicy({ effect: "write", guard: "row-lock", retry: "transient" }),
+      );
 
       context.logger.info("archive-note finished", { ...fields, outcome });
       return { outcome };
     },
     { plugins: deps.plugins },
   );
+}
+
+/**
+ * The `archive` step's effect. Safe to run again, and by two executions at once: the row is
+ * locked for the transaction, and an already archived note is reported, not archived again.
+ */
+export async function archiveNoteById(
+  deps: { readonly db: Database; readonly now: () => Date },
+  noteId: string,
+): Promise<ArchiveNoteOutcome> {
+  return await inTransaction(deps.db, async (tx): Promise<ArchiveNoteOutcome> => {
+    const note = await findNoteForUpdate(tx, noteId);
+    if (note === undefined) return "missing";
+    const archived = archiveNote(note, deps.now());
+    if (!archived.ok) return "already-archived";
+    await saveNote(tx, archived.value);
+    return "archived";
+  });
 }
 
 /**

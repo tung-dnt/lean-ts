@@ -13,23 +13,18 @@
  * A workflow is a file under apps/*\/src that calls `withDurableExecution(` with the
  * handler inline. Exits 1 when durable-viz cannot draw a workflow, after writing the rest.
  */
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
+
+import { changedSince, isWorkflow, replacePrSection, run, workflowFiles } from "./workflow-files.ts";
 
 const START = "<!-- workflow-graphs:start -->";
 const END = "<!-- workflow-graphs:end -->";
 const durableViz = join(import.meta.dirname, "..", "node_modules", ".bin", "durable-viz");
 
 const { values: args } = parseArgs({ options: { base: { type: "string" }, pr: { type: "string" } } });
-
-const run = (command: string, argv: readonly string[], input?: string): string =>
-  execFileSync(command, argv, { encoding: "utf8", stdio: "pipe", ...(input === undefined ? {} : { input }) });
-
-/** The convention: a workflow file calls `withDurableExecution(` with the handler inline. */
-const isWorkflow = (source: string): boolean => source.includes("withDurableExecution(");
 
 type Drawing = { ok: true; mermaid: string } | { ok: false; error: string };
 
@@ -70,25 +65,14 @@ const block = (result: Drawing): string =>
     ? `\`\`\`mermaid\n${result.mermaid}\n\`\`\``
     : `> ⚠ durable-viz could not draw this file:\n> ${result.error}`;
 
-// Tracked and new (not ignored) files; a tracked file deleted in the working tree is skipped.
-const candidates = run("git", [
-  "ls-files",
-  "--cached",
-  "--others",
-  "--exclude-standard",
-  "apps/*/src/*.ts",
-  "apps/*/src/**/*.ts",
-])
-  .split("\n")
-  .filter((path) => path !== "" && existsSync(path));
-const workflows = [...new Set(candidates)].filter((path) => isWorkflow(readFileSync(path, "utf8")));
+const workflows = workflowFiles();
 
 let mergeBase: string | undefined;
 let selected = workflows;
 if (args.base !== undefined) {
-  mergeBase = run("git", ["merge-base", args.base, "HEAD"]).trim();
-  const changed = new Set(run("git", ["diff", "--name-only", mergeBase, "HEAD"]).split("\n"));
-  selected = workflows.filter((path) => changed.has(path));
+  const since = changedSince(args.base);
+  mergeBase = since.mergeBase;
+  selected = workflows.filter((path) => since.changed.has(path));
 }
 
 const scratch = mkdtempSync(join(tmpdir(), "workflow-graph-"));
@@ -124,13 +108,7 @@ const markdown =
 if (args.pr === undefined) {
   process.stdout.write(markdown === "" ? "No workflow graphs to show.\n" : `${markdown}\n`);
 } else {
-  const body = run("gh", ["pr", "view", args.pr, "--json", "body", "--jq", ".body"]);
-  const at = body.indexOf(START);
-  const end = body.indexOf(END);
-  const kept =
-    at === -1 || end === -1 ? body.trimEnd() : `${body.slice(0, at)}${body.slice(end + END.length)}`.trimEnd();
-  const next = markdown === "" ? kept : `${kept}\n\n${markdown}`;
-  if (next.trim() !== body.trim()) run("gh", ["pr", "edit", args.pr, "--body-file", "-"], next);
+  replacePrSection(args.pr, START, END, markdown);
   process.stdout.write(`PR #${args.pr}: ${sections.length} workflow graph(s) in the body.\n`);
 }
 

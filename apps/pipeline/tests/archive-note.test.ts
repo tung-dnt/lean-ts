@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import { createOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
 import { Logger } from "@aws-lambda-powertools/logger";
@@ -9,11 +10,16 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import { z } from "zod";
 
-import { connect, findNote, insertNote } from "@lean-ts/db";
+import { connect, findNote, findNoteForUpdate, inTransaction, insertNote, saveNote } from "@lean-ts/db";
 import { testDatabaseUrl, truncateAll } from "@lean-ts/db/testing";
-import { createNote } from "@lean-ts/domain-note";
+import { archiveNote, createNote } from "@lean-ts/domain-note";
 
-import { ARCHIVE_NOTE_WORKFLOW, archiveNoteWorkflow } from "../src/archive-note.ts";
+import {
+  ARCHIVE_NOTE_WORKFLOW,
+  archiveNoteById,
+  archiveNoteWorkflow,
+  type ArchiveNoteOutcome,
+} from "../src/archive-note.ts";
 
 // The real workflow, SDK, OTel plugin and PostgreSQL; only the durable backend is the
 // SDK's local checkpoint server, which replays the handler the way Lambda does.
@@ -153,5 +159,42 @@ describe("archive-note workflow", () => {
       expect(entry).toMatchObject({ correlationId: payload.correlationId, noteId: payload.noteId, traceId });
       expect(entry["executionArn"]).toEqual(expect.any(String));
     }
+  });
+});
+
+// A step re-runs when its checkpoint is lost after it succeeded, and two executions can run it
+// at once. `vp run workflows:contract` requires this test for the `archive` write step.
+describe("idempotent: archive-note/archive", () => {
+  const deps = { db: handle.db, now: () => archivedAt };
+
+  test("running the step's effect twice archives once and leaves the same row", async () => {
+    const noteId = await seedNote();
+
+    expect(await archiveNoteById(deps, noteId)).toBe("archived");
+    const afterFirst = await findNote(handle.db, noteId);
+    expect(await archiveNoteById({ ...deps, now: () => new Date("2026-11-23T00:00:00.000Z") }, noteId)).toBe(
+      "already-archived",
+    );
+
+    expect(await findNote(handle.db, noteId)).toEqual(afterFirst);
+  });
+
+  test("a run that reaches the row while another run holds it waits, then reports already-archived", async () => {
+    const noteId = await seedNote();
+    let second: Promise<ArchiveNoteOutcome> | undefined;
+
+    // The first run reads the row, then pauses before writing. Without the row lock the second
+    // run would read the same unarchived row in that pause and archive it too.
+    await inTransaction(handle.db, async (tx) => {
+      const note = await findNoteForUpdate(tx, noteId);
+      second = archiveNoteById(deps, noteId);
+      await sleep(300);
+      const archived = note === undefined ? undefined : archiveNote(note, archivedAt);
+      if (archived?.ok !== true) throw new Error("fixture note could not be archived");
+      await saveNote(tx, archived.value);
+    });
+
+    expect(await second).toBe("already-archived");
+    expect(await findNote(handle.db, noteId)).toMatchObject({ status: "archived", archivedAt });
   });
 });

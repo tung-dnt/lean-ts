@@ -73,6 +73,9 @@ export function archiveNoteWorkflow(deps: {
         });
       });
 
+      // Throwaway change on try/workflow-graph to exercise the PR-body graph job.
+      await context.step("notify-owner", async () => "skipped");
+
       context.logger.info("archive-note finished", { ...fields, outcome });
       return { outcome };
     },

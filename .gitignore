@@ -34,3 +34,6 @@ dist-ssr
 
 # Local evidence (screenshots, probe output); can hold account IDs
 .artifact/
+
+# CDK synth output
+cdk.out/

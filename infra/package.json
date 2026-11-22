@@ -1,0 +1,24 @@
+{
+  "name": "@lean-ts/infra",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AWS CDK (TypeScript) for every app: HTTP API, SQS worker, durable pipeline, web, alarms, secrets, migrations.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vp test",
+    "synth": "cdk synth --quiet",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy --all"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "catalog:",
+    "constructs": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "aws-cdk": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

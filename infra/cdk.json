@@ -1,0 +1,11 @@
+{
+  "app": "node bin/app.ts",
+  "watch": { "include": ["bin/**", "src/**"] },
+  "context": {
+    "stage": "dev",
+    "databaseSecretArn": "arn:aws:secretsmanager:eu-west-2:111111111111:secret:lean-ts/dev/database-url-AbCdEf",
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true
+  }
+}

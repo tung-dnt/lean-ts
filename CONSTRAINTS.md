@@ -30,15 +30,17 @@ The Floor is in [AGENTS.md](AGENTS.md), so that every agent has it loaded from i
 
 ## Measured (ratchets)
 
-| Metric                           | Today                                                                    | Direction         | Why this number                                                               |
-| -------------------------------- | ------------------------------------------------------------------------ | ----------------- | ----------------------------------------------------------------------------- |
-| `apps/api/dist/handler.mjs`      | 779 kB (169 kB gzip), template; Powertools router + logger added 157 kB  | ≤ +10% per change | Cold start grows with bundle size                                             |
-| `apps/worker/dist/handler.mjs`   | 775 kB (166 kB gzip), template; Powertools batch + parser + logger       | ≤ +10% per change | Same                                                                          |
-| `apps/pipeline/dist/handler.mjs` | 2.85 MB, template (bundles `@aws-sdk/client-lambda` for the durable SDK) | ≤ +10% per change | Same; the next cut is using the runtime's AWS SDK, once its version is pinned |
-| `apps/web` JS gzip               | 91 kB, template                                                          | ≤ +10% per change | React + zod dominate; growth should be deliberate                             |
+| Metric                           | Today                                                                        | Direction         | Why this number                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
+| `apps/api/dist/handler.mjs`      | 809 kB (176 kB gzip), template; Powertools router, logger, parameters        | ≤ +10% per change | Cold start grows with bundle size                                             |
+| `apps/worker/dist/handler.mjs`   | 805 kB (173 kB gzip), template; Powertools batch, parser, logger, parameters | ≤ +10% per change | Same                                                                          |
+| `apps/migrator/dist/handler.mjs` | 745 kB (161 kB gzip), template                                               | ≤ +10% per change | Same                                                                          |
+| `apps/pipeline/dist/handler.mjs` | 2.88 MB, template (bundles `@aws-sdk/client-lambda` for the durable SDK)     | ≤ +10% per change | Same; the next cut is using the runtime's AWS SDK, once its version is pinned |
+| `apps/web` JS gzip               | 91 kB, template                                                              | ≤ +10% per change | React + zod dominate; growth should be deliberate                             |
 
 ## Exceptions
 
-| ID  | Rule | Path | Reason | Owner | Expires |
-| --- | ---- | ---- | ------ | ----- | ------- |
-| —   | —    | —    | none   | —     | —       |
+| ID  | Rule                             | Path                  | Reason                                                                                 | Owner    | Expires                           |
+| --- | -------------------------------- | --------------------- | -------------------------------------------------------------------------------------- | -------- | --------------------------------- |
+| E1  | `exactOptionalPropertyTypes` off | `infra/tsconfig.json` | aws-cdk-lib's own types fail under it (`Bucket` vs `IBucket.isWebsite`)                | template | when aws-cdk-lib types support it |
+| E2  | `eslint/no-new` off              | `infra/**`            | CDK constructs register in their scope when constructed; `new X(this, …)` is the idiom | template | none                              |

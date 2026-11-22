@@ -77,6 +77,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: vp run -r build
 
+      - name: Infrastructure synthesizes (CDK)
+        if: ${{ !cancelled() }}
+        run: vp run infra:synth
+
   # Puts a Mermaid graph of each changed durable workflow (before and after), then its contract
   # card, into the PR body between <!-- workflow-graphs:… --> and <!-- workflow-contracts:… -->
   # markers; the rest of the body is kept. Same-repository PRs only: a fork's token cannot edit the PR.

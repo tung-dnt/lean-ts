@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - infra
 
 # Every shared version lives here; packages reference it with "catalog:".
 catalogMode: strict
@@ -21,8 +22,15 @@ catalog:
   "@aws-lambda-powertools/batch": 2.36.0
   "@aws-lambda-powertools/event-handler": 2.36.0
   "@aws-lambda-powertools/logger": 2.36.0
+  "@aws-lambda-powertools/parameters": 2.36.0
+  # Peer of Powertools Parameters (secrets); bundled into each Lambda.
+  "@aws-sdk/client-secrets-manager": 3.1175.0
   "@aws-lambda-powertools/parser": 2.36.0
   "@standard-schema/spec": 1.1.0
+  # Infrastructure as code (infra/). CLI and library are versioned separately; upgrade together.
+  aws-cdk: 2.1149.0
+  aws-cdk-lib: 2.278.0
+  constructs: 10.8.1
   # dependency-cruiser's parser: it cannot use TypeScript 7.0 (no compiler API until 7.1).
   "@swc/core": 1.16.22
   "@testcontainers/postgresql": 12.2.2

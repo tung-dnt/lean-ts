@@ -1,91 +1,36 @@
-import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
+import { randomUUID } from "node:crypto";
 
-import type { Logger } from "./log.ts";
+import { Router } from "@aws-lambda-powertools/event-handler/http";
+import type { Logger } from "@aws-lambda-powertools/logger";
+import { z } from "zod";
 
 export const CORRELATION_HEADER = "x-correlation-id";
 
-export interface HttpRequest {
-  /** API Gateway route key, e.g. "GET /notes/{id}"; "$default" for the catch-all route. */
-  readonly routeKey: string;
-  readonly method: string;
-  readonly path: string;
-  readonly pathParams: Readonly<Record<string, string | undefined>>;
-  readonly query: Readonly<Record<string, string | undefined>>;
-  readonly headers: Readonly<Record<string, string | undefined>>;
-  /** Parsed JSON body; `undefined` when there is none. Invalid JSON is rejected before routing. */
-  readonly body: unknown;
-  readonly correlationId: string;
-  readonly log: Logger;
-}
-
-export interface HttpResponse {
-  readonly status: number;
-  readonly body?: unknown;
-  readonly headers?: Readonly<Record<string, string>>;
-}
-
-export type HttpHandler = (request: HttpRequest) => Promise<HttpResponse>;
-
-export const json = (status: number, body: unknown): HttpResponse => ({ status, body });
-
-export const problem = (status: number, title: string, detail?: unknown): HttpResponse => ({
-  status,
-  body: detail === undefined ? { title } : { title, detail },
-});
+const correlationId = z.uuid();
 
 /**
- * Adapts an API Gateway HTTP API (payload v2) event to `HttpHandler`: correlation ID in
- * and out, JSON parsing, and one place that turns unexpected errors into a 500 without
- * leaking internals.
+ * The HTTP API router every app starts from: Powertools Event Handler (API Gateway HTTP
+ * API v2, REST v1, ALB). Routes declare zod schemas in `validation.req` (body, query,
+ * path, headers); the router validates before the handler runs, answers 422 with the
+ * issues, and types `reqCtx.valid.req`. Unmatched routes get 404, unhandled errors 500
+ * without internals.
+ *
+ * Added here: one correlation ID per request. A caller's `x-correlation-id` is kept when
+ * it is a UUID (anything else is replaced, so log lines can't be forged), set as the
+ * logger's `correlation_id`, and echoed on the response.
  */
-export function httpLambda(
-  handler: HttpHandler,
-  log: Logger,
-): (event: APIGatewayProxyEventV2) => Promise<APIGatewayProxyStructuredResultV2> {
-  return async (event) => {
-    const correlationId = event.headers[CORRELATION_HEADER] ?? event.requestContext.requestId;
-    const requestLog = log.with({ correlationId, route: event.routeKey });
-
-    let response: HttpResponse;
-    const body = parseBody(event);
-    if (body === invalidJson) {
-      response = problem(400, "Body is not valid JSON");
-    } else {
-      try {
-        response = await handler({
-          routeKey: event.routeKey,
-          method: event.requestContext.http.method,
-          path: event.rawPath,
-          pathParams: event.pathParameters ?? {},
-          query: event.queryStringParameters ?? {},
-          headers: event.headers,
-          body,
-          correlationId,
-          log: requestLog,
-        });
-      } catch (error) {
-        requestLog.error("unhandled error", { error });
-        response = problem(500, "Internal error");
-      }
+export function createHttpRouter(logger: Logger): Router {
+  const app = new Router({ logger });
+  app.use(async ({ reqCtx, next }) => {
+    const incoming = reqCtx.req.headers.get(CORRELATION_HEADER);
+    const id = correlationId.safeParse(incoming).success && incoming !== null ? incoming : randomUUID();
+    logger.setCorrelationId(id);
+    try {
+      await next();
+    } finally {
+      // Also on 4xx/5xx: validation and handler errors throw through here.
+      reqCtx.res.headers.set(CORRELATION_HEADER, id);
     }
-
-    requestLog.info("request", { status: response.status });
-    return {
-      statusCode: response.status,
-      headers: { "content-type": "application/json", [CORRELATION_HEADER]: correlationId, ...response.headers },
-      ...(response.body === undefined ? {} : { body: JSON.stringify(response.body) }),
-    };
-  };
-}
-
-const invalidJson = Symbol("invalid-json");
-
-function parseBody(event: APIGatewayProxyEventV2): unknown {
-  if (event.body === undefined || event.body === "") return undefined;
-  const text = event.isBase64Encoded ? Buffer.from(event.body, "base64").toString("utf8") : event.body;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return invalidJson;
-  }
+  });
+  return app;
 }

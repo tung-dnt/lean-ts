@@ -34,7 +34,7 @@ apps/pipeline       durable workflows (Lambda durable functions), one function p
 apps/web            React + Vite browser app
 packages/domain-*   pure rules and zod schemas; client-safe (browser and server)
 packages/db         schema, migrations, client, queries: the only importer of Drizzle and pg
-packages/platform   server-only plumbing: config, JSON logger, Lambda adapters
+packages/platform   server-only plumbing on Powertools: config, HTTP router, SQS batch handler, test fixtures
 tooling/            lint config, boundary rules, shared Lambda bundling config
 ```
 
@@ -53,6 +53,25 @@ To add a domain, copy `packages/domain-note` to `packages/domain-<name>`, rename
 
 `vp pack` builds `apps/*/dist/handler.mjs`: one ESM file with every dependency, workspace packages included, so the deploy artifact needs no `node_modules`. Handler: `handler.handler`, runtime `nodejs24.x`. Settings: `tooling/lambda-pack.ts`. Each Lambda reads `DATABASE_URL` at cold start.
 
+## Lambda runtime: Powertools for AWS Lambda
+
+Every Lambda uses [Powertools for AWS Lambda (TypeScript)](https://docs.aws.amazon.com/powertools/typescript/latest/), one pinned version for all its packages:
+
+| Concern                        | Powertools utility                                                                                                                    | Where                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Logging                        | `Logger`: one JSON object per line with `service`, `function_name`, `cold_start`, `correlation_id`; level from `POWERTOOLS_LOG_LEVEL` | each `apps/*/src/handler.ts` creates one; pass it down                          |
+| HTTP (API Gateway HTTP API v2) | Event Handler `Router`                                                                                                                | `createHttpRouter(logger)` in `packages/platform/src/http.ts`                   |
+| SQS                            | Batch Processing with Parser (`innerSchema`, `json`)                                                                                  | `sqsBatchHandler({ schema, logger, handle })` in `packages/platform/src/sqs.ts` |
+| Durable workflows              | the durable SDK's `createPowertoolsLogger(logger)`                                                                                    | `apps/pipeline`                                                                 |
+
+Validation is bound to the route, with zod. Each API route declares `validation: { req: { body, query, path, headers }, res: { body } }`. The router validates the request before the handler runs and answers **422** with the issues (`{ error: "RequestValidationError", details: { issues } }`); the handler reads typed values from `valid.req`. A response that breaks its schema becomes a 500 instead of reaching the client. The note body schema is the domain's `newNoteInput`, so the browser, the API and the domain validate with one definition. On SQS, a record whose body fails the queue schema is reported as a batch item failure and never reaches the handler.
+
+This validation runs in the Lambda, not in API Gateway: HTTP APIs have no request validators (only REST APIs do, with JSON Schema models), and keeping it in the router means one zod schema serves the API, the browser and the tests.
+
+Correlation: `createHttpRouter` keeps a caller's `x-correlation-id` when it is a UUID (otherwise makes one), sets it as the logger's `correlation_id`, and returns it on every response, errors included. `sqsBatchHandler` uses the record's `correlationId` message attribute, else its message ID.
+
+Not used: Powertools Tracer (built on the X-Ray SDK, in maintenance mode since 2026-02-25). Tracing is OpenTelemetry through the ADOT layer.
+
 ## Durable workflows
 
 `apps/pipeline` holds workflows built on [Lambda durable functions](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html): plain TypeScript where `context.step` checkpoints a result and `context.wait` suspends the run without compute charges. `src/archive-note.ts` is the example: check the note, wait out a grace period, archive it.
@@ -65,7 +84,7 @@ Rules (the code is replayed from the top after every wait or retry):
 - The caller starts a run with the correlation ID in the execution name (`--durable-execution-name archive-note-<correlationId>`). Lambda then refuses a second run with that name and a different payload, and the ID is in the execution ARN on every span.
 - `withDurableExecution` wraps the handler inline in the workflow file, so durable-viz can draw it.
 
-Observability: the durable SDK's OpenTelemetry plugin emits one trace per run (a span named after the workflow, a span per step and wait, an attempt span per try). Spans go to the global provider, which the ADOT / Application Signals Lambda layer registers (`AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`). Steps put `correlation.id` on their attempt span. `context.logger` goes through `src/durable-log.ts` to the platform JSON logger, so lines carry `correlationId`, `executionArn`, `operationName` and `traceId`, and are not repeated on replay. Per workflow, Lambda's `DurableExecution*` metrics count runs, and grouping spans by `attributes.durable.operation.name` in Logs Insights (`aws/spans`, with CloudWatch Transaction Search on) gives runs, failures and p95 per step.
+Observability: the durable SDK's OpenTelemetry plugin emits one trace per run (a span named after the workflow, a span per step and wait, an attempt span per try). Spans go to the global provider, which the ADOT / Application Signals Lambda layer registers (`AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`). Steps put `correlation.id` on their attempt span. `context.logger` writes through Powertools (`createPowertoolsLogger`), so lines carry `correlationId`, `executionArn`, `operationName` and `traceId`, and are not repeated on replay. Per workflow, Lambda's `DurableExecution*` metrics count runs, and grouping spans by `attributes.durable.operation.name` in Logs Insights (`aws/spans`, with CloudWatch Transaction Search on) gives runs, failures and p95 per step.
 
 Tests run the workflow with the SDK's `LocalDurableTestRunner`, which replays it like Lambda, against real PostgreSQL.
 

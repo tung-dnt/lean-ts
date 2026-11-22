@@ -173,6 +173,18 @@ settings:
 
 catalogs:
   default:
+    '@aws-lambda-powertools/batch':
+      specifier: 2.36.0
+      version: 2.36.0
+    '@aws-lambda-powertools/event-handler':
+      specifier: 2.36.0
+      version: 2.36.0
+    '@aws-lambda-powertools/logger':
+      specifier: 2.36.0
+      version: 2.36.0
+    '@aws-lambda-powertools/parser':
+      specifier: 2.36.0
+      version: 2.36.0
     '@aws/durable-execution-sdk-js':
       specifier: 3.1.0
       version: 3.1.0
@@ -194,6 +206,9 @@ catalogs:
     '@opentelemetry/sdk-trace-node':
       specifier: 2.12.1
       version: 2.12.1
+    '@standard-schema/spec':
+      specifier: 1.1.0
+      version: 1.1.0
     '@swc/core':
       specifier: 1.16.22
       version: 1.16.22
@@ -286,6 +301,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@aws-lambda-powertools/event-handler':
+        specifier: 'catalog:'
+        version: 2.36.0(@standard-schema/spec@1.1.0)
+      '@aws-lambda-powertools/logger':
+        specifier: 'catalog:'
+        version: 2.36.0
       '@lean-ts/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -314,6 +335,9 @@ importers:
 
   apps/pipeline:
     dependencies:
+      '@aws-lambda-powertools/logger':
+        specifier: 'catalog:'
+        version: 2.36.0
       '@aws/durable-execution-sdk-js':
         specifier: 'catalog:'
         version: 3.1.0
@@ -394,6 +418,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@aws-lambda-powertools/logger':
+        specifier: 'catalog:'
+        version: 2.36.0
       '@lean-ts/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -469,6 +496,21 @@ importers:
 
   packages/platform:
     dependencies:
+      '@aws-lambda-powertools/batch':
+        specifier: 'catalog:'
+        version: 2.36.0
+      '@aws-lambda-powertools/event-handler':
+        specifier: 'catalog:'
+        version: 2.36.0(@standard-schema/spec@1.1.0)
+      '@aws-lambda-powertools/logger':
+        specifier: 'catalog:'
+        version: 2.36.0
+      '@aws-lambda-powertools/parser':
+        specifier: 'catalog:'
+        version: 2.36.0(zod@4.6.7)
+      '@standard-schema/spec':
+        specifier: 'catalog:'
+        version: 1.1.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -487,6 +529,46 @@ importers:
         version: 1.7.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/ui@5.1.0)(oxlint-tsgolint@7.0.2007)(typescript@7.0.2)(yaml@2.9.1)
 
 packages:
+
+  '@aws-lambda-powertools/batch@2.36.0':
+    resolution: {integrity: sha512-FXflvdV+rSzuP57LZg4JGUyZacSeVXuY82TpDKASYdFpaGBI8eJ1pYR6XYsdW+tcV/wykIzHI6kjY5Fyt3Z9fQ==}
+
+  '@aws-lambda-powertools/commons@2.36.0':
+    resolution: {integrity: sha512-rYkMu22qpi9wVWCcj51qMj2eKIFyxzpG5Rsasckjq6MPNzafLk/0G/VhFUY536gjWsgwVKZDuM3jMOsdVJFChw==}
+
+  '@aws-lambda-powertools/event-handler@2.36.0':
+    resolution: {integrity: sha512-if69sCBmcSuxx8D5fbGeDc+61J2g2fmKphiOCijEP/w7eEb3TffdQh6a8NZxRtC1X/O45inNWnYSzhAsDEUSNA==}
+    peerDependencies:
+      '@aws-lambda-powertools/metrics': '>=2.36.0'
+      '@aws-lambda-powertools/tracer': '>=2.36.0'
+      '@standard-schema/spec': ^1.0.0
+    peerDependenciesMeta:
+      '@aws-lambda-powertools/metrics':
+        optional: true
+      '@aws-lambda-powertools/tracer':
+        optional: true
+
+  '@aws-lambda-powertools/logger@2.36.0':
+    resolution: {integrity: sha512-NQrZd6bJNw2CL7DlwU7ta6ktxGIbvyga8znuHRlIAAqRjkpC8pYtfXkYDUEQZGqhTeVS6+tU3YxszHuOB/1nkg==}
+    peerDependencies:
+      '@aws-lambda-powertools/jmespath': 2.36.0
+      '@middy/core': 4.x || 5.x || 6.x || 7.x
+    peerDependenciesMeta:
+      '@aws-lambda-powertools/jmespath':
+        optional: true
+      '@middy/core':
+        optional: true
+
+  '@aws-lambda-powertools/parser@2.36.0':
+    resolution: {integrity: sha512-FM69RglNTd9pB/mTIOEMMh/LjqROd8jC0GjdwXHK6OKso0tEpCN+FGVM6RS5Iznb5GhD2UTd3w0dsGBpDTzRSg==}
+    peerDependencies:
+      '@middy/core': 4.x || 5.x || 6.x || 7.x
+      zod: 4.x
+    peerDependenciesMeta:
+      '@middy/core':
+        optional: true
+      zod:
+        optional: true
 
   '@aws-sdk/client-lambda@3.1175.0':
     resolution: {integrity: sha512-LhLSI9QpI8hx7Ls0Wz9/bdhgwylbkxSjrxEjIL6eR+djBoKdpRzyXSA6FbQxzYdj6MqSsO/bSCySSVHzKmIRQw==}
@@ -1022,6 +1104,9 @@ packages:
   '@smithy/types@4.20.0':
     resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
+
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
   '@swc/core-darwin-arm64@1.16.22':
     resolution: {integrity: sha512-PddkOjOK3MK01AVOvqG309iAJ0hn5vK37ug9g5Zt5e2aWF3IhVLdDLjMePXts1zi8yc4ild2h9FYCkVYb5+Qcw==}
@@ -2832,6 +2917,31 @@ packages:
 
 snapshots:
 
+  '@aws-lambda-powertools/batch@2.36.0':
+    dependencies:
+      '@aws-lambda-powertools/commons': 2.36.0
+      '@standard-schema/spec': 1.1.0
+
+  '@aws-lambda-powertools/commons@2.36.0':
+    dependencies:
+      '@aws/lambda-invoke-store': 0.3.0
+
+  '@aws-lambda-powertools/event-handler@2.36.0(@standard-schema/spec@1.1.0)':
+    dependencies:
+      '@aws-lambda-powertools/commons': 2.36.0
+      '@standard-schema/spec': 1.1.0
+
+  '@aws-lambda-powertools/logger@2.36.0':
+    dependencies:
+      '@aws-lambda-powertools/commons': 2.36.0
+
+  '@aws-lambda-powertools/parser@2.36.0(zod@4.6.7)':
+    dependencies:
+      '@aws-lambda-powertools/commons': 2.36.0
+      '@standard-schema/spec': 1.1.0
+    optionalDependencies:
+      zod: 4.6.7
+
   '@aws-sdk/client-lambda@3.1175.0':
     dependencies:
       '@aws-sdk/core': 3.981.1
@@ -3302,6 +3412,8 @@ snapshots:
   '@smithy/types@4.20.0':
     dependencies:
       tslib: 2.9.1
+
+  '@standard-schema/spec@1.1.0': {}
 
   '@swc/core-darwin-arm64@1.16.22':
     optional: true

@@ -1,94 +1,82 @@
-import type { APIGatewayProxyEventV2, SQSEvent, SQSRecord } from "aws-lambda";
+import { Logger } from "@aws-lambda-powertools/logger";
 import { describe, expect, test } from "vite-plus/test";
+import { z } from "zod";
 
-import { createLogger, httpLambda, json, sqsLambda } from "../src/index.ts";
+import { CORRELATION_HEADER, createHttpRouter, sqsBatchHandler } from "../src/index.ts";
+import { httpApiEvent, lambdaContext, sqsRecord } from "../src/testing.ts";
 
-const lines: string[] = [];
-const log = createLogger({ sink: (line) => lines.push(line) });
+const logger = new Logger({ serviceName: "platform-test", logLevel: "SILENT" });
+const context = lambdaContext("platform-test");
 
-function httpEvent(overrides: Partial<APIGatewayProxyEventV2> = {}): APIGatewayProxyEventV2 {
-  return {
-    version: "2.0",
-    routeKey: "POST /notes",
-    rawPath: "/notes",
-    rawQueryString: "",
-    headers: {},
-    isBase64Encoded: false,
-    requestContext: {
-      accountId: "1",
-      apiId: "api",
-      domainName: "example.test",
-      domainPrefix: "example",
-      http: { method: "POST", path: "/notes", protocol: "HTTP/1.1", sourceIp: "127.0.0.1", userAgent: "test" },
-      requestId: "req-1",
-      routeKey: "POST /notes",
-      stage: "$default",
-      time: "",
-      timeEpoch: 0,
+describe("createHttpRouter", () => {
+  const seen: unknown[] = [];
+  const app = createHttpRouter(logger);
+  app.post(
+    "/notes",
+    ({ valid }) => {
+      seen.push(logger.getCorrelationId());
+      return { title: valid.req.body.title };
     },
-    ...overrides,
-  };
-}
-
-describe("httpLambda", () => {
-  test("passes the parsed body and echoes the caller's correlation ID", async () => {
-    const handler = httpLambda(async (request) => json(200, { got: request.body }), log);
-    const result = await handler(httpEvent({ body: '{"a":1}', headers: { "x-correlation-id": "corr-9" } }));
-    expect(result).toMatchObject({ statusCode: 200, body: '{"got":{"a":1}}' });
-    expect(result.headers).toMatchObject({ "x-correlation-id": "corr-9" });
+    { validation: { req: { body: z.strictObject({ title: z.string().min(1) }) } } },
+  );
+  app.get("/boom", () => {
+    throw new Error("database password is hunter2");
   });
 
-  test("rejects invalid JSON before the handler runs", async () => {
-    let called = false;
-    const handler = httpLambda(async () => {
-      called = true;
-      return json(200, {});
-    }, log);
-    const result = await handler(httpEvent({ body: "{not json" }));
-    expect(result.statusCode).toBe(400);
-    expect(called).toBe(false);
+  test("keeps a caller's UUID correlation ID on the logger and the response", async () => {
+    const id = "3f2f6a3e-8a57-4c39-9d36-1a1f4f3a1b2c";
+    const event = httpApiEvent("POST", "/notes", { body: { title: "a" }, headers: { [CORRELATION_HEADER]: id } });
+    const result = await app.resolve(event, context);
+    expect(result.statusCode).toBe(200);
+    expect(result.headers?.[CORRELATION_HEADER]).toBe(id);
+    expect(seen.at(-1)).toBe(id);
   });
 
-  test("turns an unexpected error into a 500 without leaking its message", async () => {
-    const handler = httpLambda(async () => {
-      throw new Error("db password is hunter2");
-    }, log);
-    const result = await handler(httpEvent());
-    expect(result).toMatchObject({ statusCode: 500, body: '{"title":"Internal error"}' });
+  test("replaces a correlation ID that is not a UUID", async () => {
+    const event = httpApiEvent("POST", "/notes", {
+      body: { title: "a" },
+      headers: { [CORRELATION_HEADER]: "not-a-uuid; level=ERROR" },
+    });
+    const result = await app.resolve(event, context);
+    expect(z.uuid().safeParse(result.headers?.[CORRELATION_HEADER]).success).toBe(true);
+  });
+
+  test("rejects a body that fails the route's schema with 422, before the handler runs", async () => {
+    const before = seen.length;
+    const result = await app.resolve(httpApiEvent("POST", "/notes", { body: { title: "", extra: 1 } }), context);
+    expect(result.statusCode).toBe(422);
+    expect(JSON.parse(result.body ?? "{}")).toMatchObject({ error: "RequestValidationError" });
+    expect(z.uuid().safeParse(result.headers?.[CORRELATION_HEADER]).success).toBe(true);
+    expect(seen.length).toBe(before);
+  });
+
+  test("answers 404 for an unknown route and 500 without internals for an unhandled error", async () => {
+    expect((await app.resolve(httpApiEvent("GET", "/nope"), context)).statusCode).toBe(404);
+    const boom = await app.resolve(httpApiEvent("GET", "/boom"), context);
+    expect(boom.statusCode).toBe(500);
+    expect(boom.body).not.toContain("hunter2");
   });
 });
 
-function sqsRecord(messageId: string, body: string): SQSRecord {
-  return {
-    messageId,
-    receiptHandle: "r",
-    body,
-    attributes: {
-      ApproximateReceiveCount: "1",
-      SentTimestamp: "0",
-      SenderId: "s",
-      ApproximateFirstReceiveTimestamp: "0",
-    },
-    messageAttributes: {},
-    md5OfBody: "",
-    eventSource: "aws:sqs",
-    eventSourceARN: "arn:aws:sqs:eu-west-2:1:q",
-    awsRegion: "eu-west-2",
-  };
-}
+describe("sqsBatchHandler", () => {
+  test("validates each body, reports only failing records, and runs records one at a time", async () => {
+    const events: string[] = [];
+    const handler = sqsBatchHandler({
+      schema: z.strictObject({ n: z.int() }),
+      logger,
+      handle: async ({ messageId, body }) => {
+        events.push(`start ${messageId} ${String(body.n)} ${String(logger.getCorrelationId())}`);
+        // Yield: if records ran in parallel, the next record would start before this one ends.
+        await Promise.resolve();
+        if (body.n === 2) throw new Error("boom");
+        events.push(`end ${messageId}`);
+      },
+    });
+    const records = [sqsRecord("m1", '{"n":1}', "c-1"), sqsRecord("bad", '{"n":"x"}'), sqsRecord("m2", '{"n":2}')];
 
-describe("sqsLambda", () => {
-  test("reports only the records that failed, including unparsable ones", async () => {
-    const handled: string[] = [];
-    const handler = sqsLambda(async (message) => {
-      if (message.messageId === "m-2") throw new Error("boom");
-      handled.push(message.messageId);
-    }, log);
-    const event: SQSEvent = { Records: [sqsRecord("m-1", "{}"), sqsRecord("m-2", "{}"), sqsRecord("m-3", "{bad")] };
+    const result = await handler({ Records: [...records, sqsRecord("m3", '{"n":3}')] }, context);
 
-    const result = await handler(event);
-
-    expect(handled).toEqual(["m-1"]);
-    expect(result.batchItemFailures).toEqual([{ itemIdentifier: "m-2" }, { itemIdentifier: "m-3" }]);
+    expect(result.batchItemFailures.map((failure) => failure.itemIdentifier).toSorted()).toEqual(["bad", "m2"]);
+    expect(events).toEqual(["start m1 1 c-1", "end m1", "start m2 2 m2", "start m3 3 m3", "end m3"]);
   });
 });

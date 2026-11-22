@@ -15,6 +15,14 @@ catalog:
   "@opentelemetry/core": 2.12.1
   "@opentelemetry/sdk-trace-base": 2.12.1
   "@opentelemetry/sdk-trace-node": 2.12.1
+  # Powertools for AWS Lambda: logger, HTTP router with zod validation, SQS batch processing.
+  # One version for every package. Tracer is not used: it is built on the X-Ray SDK, which is
+  # in maintenance mode; tracing is OpenTelemetry (ADOT layer).
+  "@aws-lambda-powertools/batch": 2.36.0
+  "@aws-lambda-powertools/event-handler": 2.36.0
+  "@aws-lambda-powertools/logger": 2.36.0
+  "@aws-lambda-powertools/parser": 2.36.0
+  "@standard-schema/spec": 1.1.0
   # dependency-cruiser's parser: it cannot use TypeScript 7.0 (no compiler API until 7.1).
   "@swc/core": 1.16.22
   "@testcontainers/postgresql": 12.2.2

@@ -7,8 +7,9 @@ A lean-ts workspace: TypeScript only, one pnpm-workspace monorepo, AWS Lambda ap
 - TypeScript only. A second language needs a measured trigger and its own ADR ([ADR 0001](docs/adr/0001-typescript-single-language.md)).
 - Put code where it belongs: wiring in `apps/*`, pure rules in `packages/domain-*`, every query in `packages/db`, Lambda/config/logging plumbing in `packages/platform`. Before writing new logic, read the package that should own it and reuse what is there.
 - Packages export TypeScript source (`exports` → `./src/index.ts`); there is no build step between them. Import another package by name, never by relative path or deep path.
-- Validate every input at the boundary with zod (HTTP body and query, queue message, env, API response in the browser). Inside, trust the types.
-- Errors the caller must handle are values (`Result` in `domain-*`); unexpected errors throw and are caught once, by `httpLambda` (500) or `sqsLambda` (batch item failure). No empty `catch`, no swallowed promise.
+- Validate every input at the boundary with zod: bind HTTP schemas to the route (`validation.req` on the Powertools router, 422 on failure), queue bodies through `sqsBatchHandler`'s `schema`, env through `loadConfig`, API responses in the browser. Inside, trust the types.
+- Lambdas use Powertools (`Logger`, the router from `createHttpRouter`, `sqsBatchHandler`); don't hand-roll a logger, router or batch loop. Not Powertools Tracer: tracing is OpenTelemetry.
+- Errors the caller must handle are values (`Result` in `domain-*`); unexpected errors throw and are caught once, by the router (500, or an `HttpError` such as `NotFoundError` for its status) or the batch processor (batch item failure). No empty `catch`, no swallowed promise.
 - Every queue handler is idempotent: claim the message ID (`claimMessage`) in the same transaction as the change.
 - Tests run the real code against real PostgreSQL with the real migrations (`@lean-ts/db/testing`). No mocks of the database, no interface that exists only so a test can fake it.
 - A task is done when `vp run ready` is green.

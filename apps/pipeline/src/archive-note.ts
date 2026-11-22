@@ -1,12 +1,15 @@
-import { withDurableExecution, type DurableContext, type DurableExecutionConfig } from "@aws/durable-execution-sdk-js";
+import {
+  createPowertoolsLogger,
+  withDurableExecution,
+  type DurableContext,
+  type DurableExecutionConfig,
+} from "@aws/durable-execution-sdk-js";
+import type { Logger } from "@aws-lambda-powertools/logger";
 import { trace } from "@opentelemetry/api";
 import { z } from "zod";
 
 import { findNote, findNoteForUpdate, inTransaction, saveNote, type Database } from "@lean-ts/db";
 import { archiveNote } from "@lean-ts/domain-note";
-import type { Logger } from "@lean-ts/platform";
-
-import { durableLogger } from "./durable-log.ts";
 
 /** Workflow name: the Workflow span name, and the key dashboards group by. */
 export const ARCHIVE_NOTE_WORKFLOW = "archive-note";
@@ -41,7 +44,8 @@ export function archiveNoteWorkflow(deps: {
 }) {
   return withDurableExecution(
     async (event: unknown, context: DurableContext): Promise<{ outcome: ArchiveNoteOutcome }> => {
-      context.configureLogger({ customLogger: durableLogger(deps.log) });
+      // Replay-aware: lines written before a wait are not repeated when the run resumes.
+      context.configureLogger({ customLogger: createPowertoolsLogger(deps.log) });
       const input = archiveNoteInput.parse(event);
       const fields = { correlationId: input.correlationId, noteId: input.noteId };
 

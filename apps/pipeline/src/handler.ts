@@ -1,8 +1,9 @@
 import { createOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
+import { Logger } from "@aws-lambda-powertools/logger";
 import { z } from "zod";
 
 import { connect } from "@lean-ts/db";
-import { createLogger, loadConfig } from "@lean-ts/platform";
+import { loadConfig } from "@lean-ts/platform";
 
 import { ARCHIVE_NOTE_WORKFLOW, archiveNoteWorkflow } from "./archive-note.ts";
 
@@ -15,7 +16,7 @@ const { db } = connect(config.DATABASE_URL, { max: 1 });
 // plugin finds no provider and the workflow runs untraced.
 export const handler = archiveNoteWorkflow({
   db,
-  log: createLogger({ base: { service: "pipeline" } }),
+  log: new Logger({ serviceName: "pipeline" }),
   now: () => new Date(),
   plugins: [createOtelPluginFactory({ workflowSpanName: ARCHIVE_NOTE_WORKFLOW })],
 });

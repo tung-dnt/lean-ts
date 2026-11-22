@@ -2,7 +2,7 @@
   "name": "@lean-ts/worker",
   "version": "0.0.0",
   "private": true,
-  "description": "SQS Lambda that archives notes, idempotently. Bundled to one file by vp pack.",
+  "description": "SQS Lambda that archives notes, idempotently, on Powertools batch processing. Bundled to one file by vp pack.",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -10,6 +10,7 @@
     "build": "vp pack"
   },
   "dependencies": {
+    "@aws-lambda-powertools/logger": "catalog:",
     "@lean-ts/db": "workspace:*",
     "@lean-ts/domain-note": "workspace:*",
     "@lean-ts/platform": "workspace:*",

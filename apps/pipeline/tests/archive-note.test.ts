@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
 
 import { createOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
+import { Logger } from "@aws-lambda-powertools/logger";
 import { LocalDurableTestRunner } from "@aws/durable-execution-sdk-js-testing";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import { z } from "zod";
 
 import { connect, findNote, insertNote } from "@lean-ts/db";
 import { testDatabaseUrl, truncateAll } from "@lean-ts/db/testing";
 import { createNote } from "@lean-ts/domain-note";
-import { createLogger } from "@lean-ts/platform";
 
 import { ARCHIVE_NOTE_WORKFLOW, archiveNoteWorkflow } from "../src/archive-note.ts";
 
@@ -20,10 +20,9 @@ import { ARCHIVE_NOTE_WORKFLOW, archiveNoteWorkflow } from "../src/archive-note.
 const handle = connect(testDatabaseUrl(), { max: 2 });
 const archivedAt = new Date("2026-11-22T09:00:00.000Z");
 const spans = new InMemorySpanExporter();
-const lines: string[] = [];
 const handler = archiveNoteWorkflow({
   db: handle.db,
-  log: createLogger({ sink: (line) => lines.push(line) }),
+  log: new Logger({ serviceName: "pipeline-test" }),
   now: () => archivedAt,
   plugins: [
     createOtelPluginFactory({
@@ -54,7 +53,6 @@ afterAll(async () => {
 beforeEach(async () => {
   await truncateAll(handle.db);
   spans.reset();
-  lines.length = 0;
 });
 
 async function seedNote(): Promise<string> {
@@ -133,12 +131,21 @@ describe("archive-note workflow", () => {
     );
   });
 
-  test("logs are JSON with the correlation and trace IDs, and are not repeated on replay", async () => {
+  test("logs are Powertools JSON with the correlation and trace IDs, and are not repeated on replay", async () => {
     const payload = input(await seedNote());
+    // Powertools writes one JSON object per line to stdout. (mockRestore clears recorded calls,
+    // so lines are collected as they are written.)
+    const written: string[] = [];
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => written.push(String(chunk)) > 0);
+    try {
+      await new LocalDurableTestRunner({ handlerFunction: handler }).run({ payload });
+    } finally {
+      stdout.mockRestore();
+    }
 
-    await new LocalDurableTestRunner({ handlerFunction: handler }).run({ payload });
-
-    const entries = lines.map((line) => z.record(z.string(), z.unknown()).parse(JSON.parse(line) as unknown));
+    const entries = written
+      .filter((line) => line.includes(payload.correlationId))
+      .map((line) => z.record(z.string(), z.unknown()).parse(JSON.parse(line) as unknown));
     // Two invocations ran, but the pre-wait line is suppressed when the second one replays it.
     expect(entries.map((entry) => entry["message"])).toEqual(["grace period started", "archive-note finished"]);
     const traceId = spans.getFinishedSpans()[0]?.spanContext().traceId;

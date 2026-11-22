@@ -14,7 +14,7 @@
  * handler inline. Exits 1 when durable-viz cannot draw a workflow, after writing the rest.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
@@ -70,8 +70,18 @@ const block = (result: Drawing): string =>
     ? `\`\`\`mermaid\n${result.mermaid}\n\`\`\``
     : `> ⚠ durable-viz could not draw this file:\n> ${result.error}`;
 
-const tracked = run("git", ["ls-files", "apps/*/src/*.ts", "apps/*/src/**/*.ts"]).split("\n").filter(Boolean);
-const workflows = tracked.filter((path) => isWorkflow(readFileSync(path, "utf8")));
+// Tracked and new (not ignored) files; a tracked file deleted in the working tree is skipped.
+const candidates = run("git", [
+  "ls-files",
+  "--cached",
+  "--others",
+  "--exclude-standard",
+  "apps/*/src/*.ts",
+  "apps/*/src/**/*.ts",
+])
+  .split("\n")
+  .filter((path) => path !== "" && existsSync(path));
+const workflows = [...new Set(candidates)].filter((path) => isWorkflow(readFileSync(path, "utf8")));
 
 let mergeBase: string | undefined;
 let selected = workflows;

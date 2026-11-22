@@ -31,13 +31,13 @@ The Floor is in [AGENTS.md](AGENTS.md), so that every agent has it loaded from i
 
 | Metric                           | Today                                                                    | Direction         | Why this number                                                               |
 | -------------------------------- | ------------------------------------------------------------------------ | ----------------- | ----------------------------------------------------------------------------- |
-| `apps/api/dist/handler.mjs`      | 622 kB (132 kB gzip), template                                           | ≤ +10% per change | Cold start grows with bundle size                                             |
-| `apps/worker/dist/handler.mjs`   | 611 kB, template                                                         | ≤ +10% per change | Same                                                                          |
-| `apps/pipeline/dist/handler.mjs` | 2.76 MB, template (bundles `@aws-sdk/client-lambda` for the durable SDK) | ≤ +10% per change | Same; the next cut is using the runtime's AWS SDK, once its version is pinned |
+| `apps/api/dist/handler.mjs`      | 779 kB (169 kB gzip), template; Powertools router + logger added 157 kB  | ≤ +10% per change | Cold start grows with bundle size                                             |
+| `apps/worker/dist/handler.mjs`   | 775 kB (166 kB gzip), template; Powertools batch + parser + logger       | ≤ +10% per change | Same                                                                          |
+| `apps/pipeline/dist/handler.mjs` | 2.85 MB, template (bundles `@aws-sdk/client-lambda` for the durable SDK) | ≤ +10% per change | Same; the next cut is using the runtime's AWS SDK, once its version is pinned |
 | `apps/web` JS gzip               | 91 kB, template                                                          | ≤ +10% per change | React + zod dominate; growth should be deliberate                             |
 
 ## Exceptions
 
-| ID  | Rule                      | Path                           | Reason                                                                  | Owner    | Expires |
-| --- | ------------------------- | ------------------------------ | ----------------------------------------------------------------------- | -------- | ------- |
-| E1  | `eslint/no-await-in-loop` | `packages/platform/src/sqs.ts` | Records run one at a time on purpose: one pooled connection, FIFO order | template | none    |
+| ID  | Rule | Path | Reason | Owner | Expires |
+| --- | ---- | ---- | ------ | ----- | ------- |
+| —   | —    | —    | none   | —     | —       |

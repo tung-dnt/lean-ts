@@ -10,6 +10,7 @@
     "build": "vp pack"
   },
   "dependencies": {
+    "@aws-lambda-powertools/logger": "catalog:",
     "@aws/durable-execution-sdk-js": "catalog:",
     "@aws/durable-execution-sdk-js-otel": "catalog:",
     "@lean-ts/db": "workspace:*",

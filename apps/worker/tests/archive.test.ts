@@ -1,19 +1,23 @@
-import type { SQSEvent, SQSRecord } from "aws-lambda";
+import { Logger } from "@aws-lambda-powertools/logger";
+import type { SQSEvent } from "aws-lambda";
 import { afterAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { connect, findNote, insertNote } from "@lean-ts/db";
 import { testDatabaseUrl, truncateAll } from "@lean-ts/db/testing";
 import { createNote, type Note } from "@lean-ts/domain-note";
-import { createLogger, sqsLambda } from "@lean-ts/platform";
+import { lambdaContext, sqsRecord } from "@lean-ts/platform/testing";
 
 import { createArchiveHandler } from "../src/archive.ts";
 
 const handle = connect(testDatabaseUrl(), { max: 2 });
 const archivedAt = new Date("2026-11-21T12:00:00.000Z");
-const handler = sqsLambda(
-  createArchiveHandler({ db: handle.db, now: () => archivedAt }),
-  createLogger({ sink: () => {} }),
-);
+const archive = createArchiveHandler({
+  db: handle.db,
+  logger: new Logger({ serviceName: "worker-test", logLevel: "SILENT" }),
+  now: () => archivedAt,
+});
+const context = lambdaContext("worker");
+const handler = async (event: SQSEvent) => await archive(event, context);
 
 afterAll(async () => {
   await handle.close();
@@ -31,24 +35,7 @@ async function seedNote(id: string): Promise<Note> {
 }
 
 function batch(...records: { messageId: string; body: string }[]): SQSEvent {
-  return {
-    Records: records.map(({ messageId, body }): SQSRecord => ({
-      messageId,
-      body,
-      receiptHandle: "rh",
-      attributes: {
-        ApproximateReceiveCount: "1",
-        SentTimestamp: "0",
-        SenderId: "s",
-        ApproximateFirstReceiveTimestamp: "0",
-      },
-      messageAttributes: {},
-      md5OfBody: "",
-      eventSource: "aws:sqs",
-      eventSourceARN: "arn:aws:sqs:eu-west-2:1:notes",
-      awsRegion: "eu-west-2",
-    })),
-  };
+  return { Records: records.map(({ messageId, body }) => sqsRecord(messageId, body)) };
 }
 
 const NOTE_A = "00000000-0000-4000-8000-00000000000a";

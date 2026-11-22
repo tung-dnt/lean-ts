@@ -37,10 +37,16 @@ export default defineConfig({
       "db:check": {
         command: "vp run --filter @lean-ts/db db:check",
       },
+      // Mermaid graph of every durable workflow, drawn from source (durable-viz). Fails when
+      // a workflow can't be drawn, so it is part of `ready`. CI puts it in the PR body.
+      "workflows:graph": {
+        command: "node tooling/workflow-graph.ts",
+        cache: false,
+      },
       // The full gate: what CI runs and what "done" means for a task.
       ready: {
         command:
-          "vp run check && vp run types && vp run boundaries && vp run db:check && vp run -r test && vp run -r build",
+          "vp run check && vp run types && vp run boundaries && vp run db:check && vp run workflows:graph && vp run -r test && vp run -r build",
         cache: false,
       },
     },

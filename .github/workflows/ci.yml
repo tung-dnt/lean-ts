@@ -61,6 +61,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: vp run db:check
 
+      - name: Workflow graphs drawable
+        if: ${{ !cancelled() }}
+        run: vp run workflows:graph
+
       - name: Tests (real PostgreSQL)
         if: ${{ !cancelled() }}
         run: vp run -r test
@@ -68,3 +72,29 @@ jobs:
       - name: Build
         if: ${{ !cancelled() }}
         run: vp run -r build
+
+  # Puts a Mermaid graph of each changed durable workflow (before and after) into the PR
+  # body, between <!-- workflow-graphs:start/end --> markers; the rest of the body is kept.
+  # Same-repository PRs only: a fork's token cannot edit the PR.
+  workflow-graphs:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The script diffs against the merge base with the target branch.
+          fetch-depth: 0
+
+      - name: Set up Vite+, Node and pnpm, install
+        uses: voidzero-dev/setup-vp@0072dab61af1caed438a55cb90c8d6dc0dfa09ce # v1.22.0
+        with:
+          node-version-file: .node-version
+          cache: true
+
+      - name: Update the workflow graphs in the PR body
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tooling/workflow-graph.ts --base "origin/${{ github.base_ref }}" --pr "${{ github.event.pull_request.number }}"

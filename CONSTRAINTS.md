@@ -20,6 +20,7 @@ The Floor is in [AGENTS.md](AGENTS.md), so that every agent has it loaded from i
 | Types           | Zero errors per package, strict flags in `tsconfig.base.json`                                                                      | `vp run types` (`tsc` 7.0.x in every package)        | task end, CI                           | yes    |
 | Boundaries      | No violation of the ADR boundary rules                                                                                             | `vp run boundaries` (dependency-cruiser, swc parser) | task end, CI                           | yes    |
 | Migrations      | Generated migrations consistent with each other                                                                                    | `vp run db:check` (`drizzle-kit check`)              | task end, CI                           | yes    |
+| Workflow graphs | Every durable workflow (a file under `apps/*/src` calling `withDurableExecution(`) can be drawn from source                        | `vp run workflows:graph` (durable-viz)               | task end, CI; graphs go in the PR body | yes    |
 | Tests           | All pass against real PostgreSQL 17                                                                                                | `vp run -r test` (Vitest)                            | task end, CI                           | yes    |
 | Build           | Lambda bundles (one ESM file, every dependency inlined) and the web app build                                                      | `vp run -r build`                                    | task end, CI                           | yes    |
 | Dependencies    | Every version from the catalog (`catalogMode: strict`); no install scripts unless allowed; no trust downgrade; minimum release age | pnpm (`pnpm-workspace.yaml`)                         | install, CI                            | yes    |
@@ -28,11 +29,12 @@ The Floor is in [AGENTS.md](AGENTS.md), so that every agent has it loaded from i
 
 ## Measured (ratchets)
 
-| Metric                         | Today                          | Direction         | Why this number                                   |
-| ------------------------------ | ------------------------------ | ----------------- | ------------------------------------------------- |
-| `apps/api/dist/handler.mjs`    | 622 kB (132 kB gzip), template | ≤ +10% per change | Cold start grows with bundle size                 |
-| `apps/worker/dist/handler.mjs` | 611 kB, template               | ≤ +10% per change | Same                                              |
-| `apps/web` JS gzip             | 91 kB, template                | ≤ +10% per change | React + zod dominate; growth should be deliberate |
+| Metric                           | Today                                                                    | Direction         | Why this number                                                               |
+| -------------------------------- | ------------------------------------------------------------------------ | ----------------- | ----------------------------------------------------------------------------- |
+| `apps/api/dist/handler.mjs`      | 622 kB (132 kB gzip), template                                           | ≤ +10% per change | Cold start grows with bundle size                                             |
+| `apps/worker/dist/handler.mjs`   | 611 kB, template                                                         | ≤ +10% per change | Same                                                                          |
+| `apps/pipeline/dist/handler.mjs` | 2.76 MB, template (bundles `@aws-sdk/client-lambda` for the durable SDK) | ≤ +10% per change | Same; the next cut is using the runtime's AWS SDK, once its version is pinned |
+| `apps/web` JS gzip               | 91 kB, template                                                          | ≤ +10% per change | React + zod dominate; growth should be deliberate                             |
 
 ## Exceptions
 

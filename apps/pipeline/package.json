@@ -1,0 +1,31 @@
+{
+  "name": "@lean-ts/pipeline",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Durable workflows (Lambda durable functions): one function per workflow, traced with OpenTelemetry.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vp test",
+    "build": "vp pack"
+  },
+  "dependencies": {
+    "@aws/durable-execution-sdk-js": "catalog:",
+    "@aws/durable-execution-sdk-js-otel": "catalog:",
+    "@lean-ts/db": "workspace:*",
+    "@lean-ts/domain-note": "workspace:*",
+    "@lean-ts/platform": "workspace:*",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/core": "catalog:",
+    "@opentelemetry/sdk-trace-node": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@aws/durable-execution-sdk-js-testing": "catalog:",
+    "@opentelemetry/sdk-trace-base": "catalog:",
+    "@types/aws-lambda": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

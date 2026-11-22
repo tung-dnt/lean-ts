@@ -21,6 +21,7 @@ A lean-ts workspace: TypeScript only, one pnpm-workspace monorepo, AWS Lambda ap
 - No new suppressions (`// oxlint-disable…`, `// @ts-ignore`, `// @ts-expect-error`, `as any`, `as unknown as`) without a comment giving the reason; a new one also needs a row in [CONSTRAINTS.md](CONSTRAINTS.md) Exceptions.
 - No secrets in source and no patient data in code, fixtures or logs. Log identifiers, never bodies.
 - Only `packages/db` imports `drizzle-orm`, `drizzle-kit` or a database driver. `apps/web` imports only `packages/domain-*`. `tooling/dependency-cruiser.cjs` enforces both.
+- In a durable workflow, never rename, reorder or remove a step in place: runs in flight replay against the old names. Add a new workflow version instead.
 - Neither this Floor nor [CONSTRAINTS.md](CONSTRAINTS.md) is weakened in the same PR as the change that was failing.
 
 ## Read before you
@@ -31,5 +32,6 @@ A lean-ts workspace: TypeScript only, one pnpm-workspace monorepo, AWS Lambda ap
 | change the schema or write a query                 | `packages/db/src/schema.ts`, then [README](README.md) (Database)                                                                 |
 | add a Lambda handler or change how one is bundled  | `packages/platform/src/http.ts` or `sqs.ts`, `tooling/lambda-pack.ts`                                                            |
 | change a lint rule, a tsconfig flag or a check     | `tooling/lint.ts`, `vite.config.ts`, [CONSTRAINTS.md](CONSTRAINTS.md)                                                            |
+| add or change a durable workflow (`apps/pipeline`) | [README](README.md) (Durable workflows), `apps/pipeline/src/archive-note.ts`, then check the graph with `vp run workflows:graph` |
 | upgrade Drizzle, TypeScript, Vite+ or tsgolint     | [ADR 0001](docs/adr/0001-typescript-single-language.md) (decision 6, Triggers) and the catalog comments in `pnpm-workspace.yaml` |
 | want to skip, suppress or loosen a check           | [CONSTRAINTS.md](CONSTRAINTS.md)                                                                                                 |

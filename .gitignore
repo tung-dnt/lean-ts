@@ -31,3 +31,6 @@ dist-ssr
 
 # AI agent worktrees
 .claude/worktrees/
+
+# Local evidence (screenshots, probe output); can hold account IDs
+.artifact/

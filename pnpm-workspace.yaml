@@ -6,6 +6,15 @@ packages:
 catalogMode: strict
 
 catalog:
+  # Lambda durable functions. Upgrade core, otel and testing together (SDK upgrade guide).
+  # OpenTelemetry: the otel plugin needs core 2.x (not 3.x), and core/sdk 2.12 need api < 1.10.
+  "@aws/durable-execution-sdk-js": 3.1.0
+  "@aws/durable-execution-sdk-js-otel": 2.1.0
+  "@aws/durable-execution-sdk-js-testing": 1.4.0
+  "@opentelemetry/api": 1.9.1
+  "@opentelemetry/core": 2.12.1
+  "@opentelemetry/sdk-trace-base": 2.12.1
+  "@opentelemetry/sdk-trace-node": 2.12.1
   # dependency-cruiser's parser: it cannot use TypeScript 7.0 (no compiler API until 7.1).
   "@swc/core": 1.16.22
   "@testcontainers/postgresql": 12.2.2
@@ -16,6 +25,8 @@ catalog:
   "@types/react-dom": 19.3.0
   "@vitejs/plugin-react": 6.3.0
   dependency-cruiser: 18.8.0
+  # Static workflow graphs for PRs (tooling/workflow-graph.ts). Pre-1.0, exact pin.
+  durable-viz: 0.11.0
   # Drizzle v1 is a release candidate: exact pins only, upgrades in their own PR (ADR decision 6).
   drizzle-kit: 1.0.0-rc.6
   drizzle-orm: 1.0.0-rc.6
